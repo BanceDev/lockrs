@@ -1,7 +1,9 @@
+use as_raw_xcb_connection::ValidConnection;
 use pam::Client;
 use xcb::Xid;
 use xcb::x;
 use xkbcommon::xkb;
+use xkbcommon::xkb::keysyms;
 
 fn get_username() -> String {
     std::env::var("USER")
@@ -24,21 +26,31 @@ fn main() -> xcb::Result<()> {
     let username = get_username();
     let mut password_buf = String::new();
 
-    // make keymap
-    let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
-    let keymap = xkb::Keymap::new_from_names(
-        &context,
-        "",   // rules
-        "",   // model
-        "",   // layout
-        "",   // variant
-        None, // options
-        xkb::KEYMAP_COMPILE_NO_FLAGS,
-    )
-    .expect("Failed to create keymap");
-    let mut state = xkb::State::new(&keymap);
-
     let (conn, screen_num) = xcb::Connection::connect(None)?;
+
+    let xkb_cookie = conn.send_request(&xcb::xkb::UseExtension {
+        wanted_major: xkb::x11::MIN_MAJOR_XKB_VERSION,
+        wanted_minor: xkb::x11::MIN_MINOR_XKB_VERSION,
+    });
+    let xkb_reply: xcb::xkb::UseExtensionReply = conn.wait_for_reply(xkb_cookie)?;
+    if !xkb_reply.supported() {
+        eprintln!("XKB extension not supported");
+        return Ok(());
+    }
+
+    // make keymap
+    let raw = conn.get_raw_conn();
+    let raw_conn = unsafe { ValidConnection::new(raw as *mut _) };
+
+    let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
+    let device_id = xkb::x11::get_core_keyboard_device_id(&raw_conn);
+    let keymap = xkb::x11::keymap_new_from_device(
+        &context,
+        &raw_conn,
+        device_id,
+        xkb::KEYMAP_COMPILE_NO_FLAGS,
+    );
+    let mut state = xkb::x11::state_new_from_device(&keymap, &raw_conn, device_id);
 
     let setup = conn.get_setup();
     let screen = setup.roots().nth(screen_num as usize).unwrap();
@@ -112,8 +124,8 @@ fn main() -> xcb::Result<()> {
 
                 let keysym = state.key_get_one_sym(keycode.into());
                 let c = xkb::keysym_to_utf8(keysym);
-                match keycode {
-                    36 => {
+                match keysym.raw() {
+                    keysyms::KEY_Return => {
                         if authenticate(&username, &password_buf) {
                             conn.send_request(&x::UngrabKeyboard {
                                 time: x::CURRENT_TIME,
@@ -128,17 +140,19 @@ fn main() -> xcb::Result<()> {
                             password_buf.clear();
                         }
                     }
-                    // Backspace (22)
-                    22 => {
+
+                    keysyms::KEY_BackSpace => {
                         password_buf.pop();
                     }
-                    // Escape (9) — clear buffer
-                    9 => {
+
+                    keysyms::KEY_Escape => {
                         password_buf.clear();
                     }
 
                     _ => {
-                        password_buf.push_str(&c);
+                        if !c.is_empty() {
+                            password_buf.push_str(&c);
+                        }
                     }
                 }
             }
