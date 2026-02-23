@@ -298,6 +298,7 @@ version = "0.1.0"
 dependencies = [
  "as-raw-xcb-connection",
  "cairo-rs",
+ "cairo-sys-rs",
  "pam",
  "xcb",
  "xkbcommon",
