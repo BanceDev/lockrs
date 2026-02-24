@@ -2,6 +2,8 @@
 name = "lockrs"
 version = "0.1.0"
 edition = "2024"
+authors = ["Lance Borden <lanceaborden@protonmail.com>"]
+license = "MIT"
 
 [dependencies]
 as-raw-xcb-connection = "1.0.1"
