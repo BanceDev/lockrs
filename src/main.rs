@@ -44,7 +44,7 @@ fn draw(ctx: &Context, width: i32, height: i32, count: usize) {
     let start_x = (width as f64 - total_width) / 2.0 + dot_spacing / 2.0;
     let center_y = height as f64 / 2.0;
 
-    ctx.set_source_rgb(0.106, 0.992, 0.612);
+    ctx.set_source_rgb(0.8, 0.8, 0.8);
     for i in 0..count {
         let x = start_x + i as f64 * dot_spacing;
         ctx.arc(x, center_y, dot_radius, 0.0, std::f64::consts::TAU);
